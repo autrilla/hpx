@@ -13,6 +13,7 @@
 #include <hpx/runtime/threads/cpu_mask.hpp>
 #include <hpx/runtime/threads/detail/scheduled_thread_pool_impl.hpp>
 #include <hpx/runtime/threads/executors/pool_executor.hpp>
+#include <hpx/runtime/threads/policies/edf_scheduler.hpp>
 //
 #include <hpx/include/iostreams.hpp>
 #include <hpx/include/runtime.hpp>
@@ -25,7 +26,6 @@
 #include <string>
 #include <utility>
 //
-#include "shared_priority_scheduler.hpp"
 #include "system_characteristics.hpp"
 
 namespace resource { namespace pools
@@ -44,7 +44,7 @@ static bool use_scheduler = false;
 static int pool_threads = 1;
 
 // this is our custom scheduler type
-using high_priority_sched = hpx::threads::policies::shared_priority_scheduler<>;
+using high_priority_sched = hpx::threads::policies::edf_scheduler<>;
 using namespace hpx::threads::policies;
 
 // Force an instantiation of the pool type templated on our custom scheduler
@@ -283,8 +283,7 @@ int main(int argc, char* argv[])
                       << std::endl;
 
             std::unique_ptr<high_priority_sched> scheduler(
-                new high_priority_sched(
-                    num_threads, 1, false, false, "shared-priority-scheduler"));
+                new high_priority_sched(num_threads));
 
             auto mode = scheduler_mode(scheduler_mode::do_background_work |
                 scheduler_mode::delay_exit);
@@ -315,8 +314,7 @@ int main(int argc, char* argv[])
                 std::cout << "User defined scheduler creation callback "
                           << std::endl;
                 std::unique_ptr<high_priority_sched> scheduler(
-                    new high_priority_sched(num_threads, 1, false, false,
-                        "shared-priority-scheduler"));
+                    new high_priority_sched(num_threads));
 
                 auto mode = scheduler_mode(scheduler_mode::delay_exit);
 
