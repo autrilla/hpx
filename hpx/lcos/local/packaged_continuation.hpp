@@ -25,7 +25,7 @@
 #include <hpx/util/thread_description.hpp>
 
 #include <hpx/parallel/executors/execution.hpp>
-#include <hpx/parallel/executors/thread_execution.hpp>
+#include <hpx/parallel/executors/parallel_executor.hpp>
 
 #include <boost/intrusive_ptr.hpp>
 
@@ -103,10 +103,11 @@ namespace hpx { namespace lcos { namespace detail
 
     template <typename Func, typename Future, typename Continuation>
     typename std::enable_if<
-        !traits::detail::is_unique_future<
+       !traits::detail::is_unique_future<
             typename util::invoke_result<Func, Future>::type
         >::value
-    >::type invoke_continuation(Func& func, Future && future, Continuation& cont)
+    >::type
+    invoke_continuation(Func& func, Future && future, Continuation& cont)
     {
         typedef std::is_void<
             typename util::invoke_result<Func, Future>::type
@@ -121,7 +122,8 @@ namespace hpx { namespace lcos { namespace detail
         traits::detail::is_unique_future<
             typename util::invoke_result<Func, Future>::type
         >::value
-    >::type invoke_continuation(Func& func, Future && future, Continuation& cont)
+    >::type
+    invoke_continuation(Func& func, Future && future, Continuation& cont)
     {
         try {
             typedef
@@ -288,8 +290,9 @@ namespace hpx { namespace lcos { namespace detail
             error_code& ec)
         {
             {
-                std::lock_guard<mutex_type> l(this->mtx_);
+                std::unique_lock<mutex_type> l(this->mtx_);
                 if (started_) {
+                    l.unlock();
                     HPX_THROWS_IF(ec, task_already_started,
                         "continuation::async",
                         "this task has already been started");
@@ -303,11 +306,10 @@ namespace hpx { namespace lcos { namespace detail
                 typename traits::detail::shared_state_ptr_for<Future>::type &&
             ) = &continuation::async_impl;
 
-            util::thread_description desc(f_, "continuation::async");
-            applier::register_thread_plain(
-                util::bind(util::one_shot(async_impl_ptr),
-                    std::move(this_), std::move(f)),
-                desc, threads::pending, true, priority);
+            parallel::execution::parallel_executor exec{
+                hpx::launch::async_policy{priority}};
+            parallel::execution::post(exec, util::one_shot(async_impl_ptr),
+                std::move(this_), std::move(f));
 
             if (&ec != &throws)
                 ec = make_success_code();
@@ -332,8 +334,9 @@ namespace hpx { namespace lcos { namespace detail
             Executor& exec, error_code& ec)
         {
             {
-                std::lock_guard<mutex_type> l(this->mtx_);
+                std::unique_lock<mutex_type> l(this->mtx_);
                 if (started_) {
+                    l.unlock();
                     HPX_THROWS_IF(ec, task_already_started,
                         "continuation::async_exec_v1",
                         "this task has already been started");
@@ -347,8 +350,8 @@ namespace hpx { namespace lcos { namespace detail
                 typename traits::detail::shared_state_ptr_for<Future>::type &&
             ) = &continuation::async_impl;
 
-            parallel::executor_traits<Executor>::apply_execute(
-                exec, async_impl_ptr, std::move(this_), std::move(f));
+            parallel::executor_traits<Executor>::apply_execute(exec,
+                util::one_shot(async_impl_ptr), std::move(this_), std::move(f));
 
             if (&ec != &throws)
                 ec = make_success_code();
@@ -374,8 +377,9 @@ namespace hpx { namespace lcos { namespace detail
             Executor && exec, error_code& ec)
         {
             {
-                std::lock_guard<mutex_type> l(this->mtx_);
+                std::unique_lock<mutex_type> l(this->mtx_);
                 if (started_) {
+                    l.unlock();
                     HPX_THROWS_IF(ec, task_already_started,
                         "continuation::async_exec",
                         "this task has already been started");
@@ -389,8 +393,8 @@ namespace hpx { namespace lcos { namespace detail
                 typename traits::detail::shared_state_ptr_for<Future>::type &&
             ) = &continuation::async_impl;
 
-            parallel::execution::post(exec, async_impl_ptr, std::move(this_),
-                std::move(f));
+            parallel::execution::post(std::forward<Executor>(exec),
+                util::one_shot(async_impl_ptr), std::move(this_), std::move(f));
 
             if (&ec != &throws)
                 ec = make_success_code();
