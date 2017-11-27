@@ -41,6 +41,7 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
+#include <queue>
 
 ///////////////////////////////////////////////////////////////////////////////
 namespace hpx { namespace threads { namespace policies
@@ -76,9 +77,16 @@ namespace hpx { namespace threads { namespace policies
 
         typedef util::tuple<thread_init_data, thread_state_enum> task_description;
         typedef thread_data thread_description;
+        
+        static constexpr auto work_items_ordering = [](thread_description* left, thread_description* right) {
+            return (void*) left < (void*) right;
+        };
 
-        typedef typename PendingQueuing::template
-            apply<thread_description*>::type work_items_type;
+        typedef std::priority_queue<
+            thread_description*,
+            std::vector<thread_description*>,
+            decltype(work_items_ordering)
+        > work_items_type;
 
         typedef typename StagedQueuing::template
             apply<task_description*>::type task_items_type;
@@ -414,7 +422,7 @@ namespace hpx { namespace threads { namespace policies
             max_delete_count(detail::get_max_delete_count()),
             max_terminated_threads(detail::get_max_terminated_threads()),
             thread_map_count_(0),
-            work_items_(128, queue_num),
+            work_items_(work_items_ordering),
             work_items_count_(0),
             terminated_items_(128),
             terminated_items_count_(0),
@@ -525,8 +533,10 @@ namespace hpx { namespace threads { namespace policies
         void move_work_items_from(edf_queue *src, std::int64_t count)
         {
             thread_description* trd;
-            while (src->work_items_.pop(trd))
+            while (!src->work_items_.empty())
             {
+                trd = src->work_items_.top();
+                src->work_items_.pop();
                 --src->work_items_count_;
 
                 bool finished = count == ++work_items_count_;
@@ -571,8 +581,19 @@ namespace hpx { namespace threads { namespace policies
                 return false;
             }
 
-            if (0 != work_items_count && work_items_.pop(thrd, steal))
+            std::lock_guard<std::mutex> lg(work_items_mutex_);
+            if (0 != work_items_count && !work_items_.empty())
             {
+                auto queue_copy = work_items_;
+                while (!queue_copy.empty())
+                {
+                    std::cout << queue_copy.top() << std::endl;
+                    queue_copy.pop();
+                }
+                thrd = work_items_.top();
+                work_items_.pop();
+                std::cout << "Scheduling next thread " << thrd << ", with description: "
+                << thrd->get_description() << ". Queue currently holds " << work_items_count << " items." << std::endl;
                 --work_items_count_;
                 return true;
             }
@@ -583,7 +604,8 @@ namespace hpx { namespace threads { namespace policies
         void schedule_thread(threads::thread_data* thrd, bool other_end = false)
         {
             ++work_items_count_;
-            work_items_.push(thrd, other_end);
+            std::lock_guard<std::mutex> lg(work_items_mutex_);
+            work_items_.push(thrd);
         }
 
         /// Destroy the passed thread as it has been terminated
@@ -788,6 +810,7 @@ namespace hpx { namespace threads { namespace policies
         ///< list of active work items
         std::atomic<std::int64_t> work_items_count_;
         ///< count of active work items
+        std::mutex work_items_mutex_;
         
         terminated_items_type terminated_items_;     ///< list of terminated threads
         std::atomic<std::int64_t> terminated_items_count_;
