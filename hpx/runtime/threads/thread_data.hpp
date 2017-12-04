@@ -95,6 +95,8 @@ namespace hpx { namespace threads
         typedef util::spinlock_pool<tag> mutex_type;
 
         typedef boost::lockfree::caching_freelist<thread_data> pool_type;
+        
+        typedef std::chrono::steady_clock::time_point deadline_type;
 
         static boost::intrusive_ptr<thread_data> create(
             thread_init_data& init_data, pool_type& pool,
@@ -444,7 +446,7 @@ namespace hpx { namespace threads
             return bt;
         }
 #endif
-
+        
         thread_priority get_priority() const
         {
             return priority_;
@@ -452,6 +454,15 @@ namespace hpx { namespace threads
         void set_priority(thread_priority priority)
         {
             priority_ = priority;
+        }
+        
+        deadline_type get_deadline() const
+        {
+            return deadline_;
+        }
+        void set_deadline(deadline_type deadline)
+        {
+            deadline_ = deadline;
         }
 
         // handle thread interruption
@@ -598,6 +609,7 @@ namespace hpx { namespace threads
             backtrace_(nullptr),
 #endif
             priority_(init_data.priority),
+            deadline_(init_data.deadline),
             requested_interrupt_(false),
             enabled_interrupt_(true),
             ran_exit_funcs_(false),
@@ -715,6 +727,8 @@ namespace hpx { namespace threads
 
         ///////////////////////////////////////////////////////////////////////
         thread_priority priority_;
+        
+        deadline_type deadline_;
 
         bool requested_interrupt_;
         bool enabled_interrupt_;

@@ -47,9 +47,31 @@ namespace hpx { namespace threads { namespace policies
             typedef edf_queue<
             Mutex, PendingQueuing, StagedQueuing, TerminatedQueuing
             > thread_queue_type;
+
+
+            struct init_parameter
+            {
+                init_parameter(std::size_t num_queues, char const* description)
+                  : num_queues_(num_queues),
+                    description_(description)
+                {}
+
+                std::size_t num_queues_;
+                char const* description_;
+            };
+            typedef init_parameter init_parameter_type;
             
             edf_scheduler(std::size_t num_thread) :
             scheduler_base(num_thread, "edf_scheduler"),
+            queue_lock_(),
+            memory_pool_(64)
+            {
+                queue_ = std::make_unique<thread_queue_type>(1000);
+            }
+            
+            edf_scheduler(init_parameter_type const& init,
+                bool deferred_initialization = true) :
+            scheduler_base(init.num_queues_, "edf_scheduler"),
             queue_lock_(),
             memory_pool_(64)
             {
@@ -77,17 +99,6 @@ namespace hpx { namespace threads { namespace policies
             {
                 std::lock_guard<std::mutex> lock{queue_lock_};
                 return queue_->cleanup_terminated(delete_all);
-            }
-            
-            void create_thread_object(threads::thread_id_type& thrd,
-                                      threads::thread_init_data& data, thread_state_enum state)
-            {
-                HPX_ASSERT(data.stacksize != 0);
-                if (state == pending_do_not_schedule || state == pending_boost)
-                {
-                    state = pending;
-                }
-                thrd = threads::thread_data::create(data, memory_pool_, state);
             }
             
             void create_thread(thread_init_data& data, thread_id_type* id,

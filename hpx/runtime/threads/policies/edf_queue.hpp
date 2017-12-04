@@ -79,7 +79,7 @@ namespace hpx { namespace threads { namespace policies
         typedef thread_data thread_description;
         
         static constexpr auto work_items_ordering = [](thread_description* left, thread_description* right) {
-            return (void*) left < (void*) right;
+            return left->get_deadline() < right->get_deadline();
         };
 
         typedef std::priority_queue<
@@ -587,7 +587,8 @@ namespace hpx { namespace threads { namespace policies
                 auto queue_copy = work_items_;
                 while (!queue_copy.empty())
                 {
-                    std::cout << queue_copy.top() << std::endl;
+                    auto t = queue_copy.top();
+                    std::cout << t << ", deadline " << t->get_deadline().time_since_epoch().count() << std::endl;
                     queue_copy.pop();
                 }
                 thrd = work_items_.top();

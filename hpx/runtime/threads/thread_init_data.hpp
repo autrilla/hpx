@@ -106,6 +106,7 @@ namespace hpx { namespace threads
 #endif
 
         thread_priority priority;
+        std::chrono::steady_clock::time_point deadline;
         std::size_t num_os_thread;
         std::ptrdiff_t stacksize;
 
