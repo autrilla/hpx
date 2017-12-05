@@ -41,6 +41,13 @@ namespace hpx { namespace threads { namespace executors
             thread_pool_executor(std::size_t max_punits = 1,
                 std::size_t min_punits = 1,
                 char const* description = "thread_pool_executor");
+
+            thread_pool_executor(
+                std::chrono::steady_clock::time_point deadline = std::chrono::steady_clock::time_point(),
+                std::size_t max_punits = 1,
+                std::size_t min_punits = 1,
+                char const* description = "thread_pool_executor");
+
             ~thread_pool_executor();
 
             // Schedule the specified function for execution in this executor.
@@ -144,6 +151,8 @@ namespace hpx { namespace threads { namespace executors
             // protect scheduler initialization
             typedef lcos::local::spinlock mutex_type;
             mutex_type mtx_;
+
+            std::chrono::steady_clock::time_point deadline_;
         };
     }
 
@@ -195,6 +204,18 @@ namespace hpx { namespace threads { namespace executors
             std::size_t min_punits = 1);
     };
 #endif
+
+    struct HPX_EXPORT edf_executor : public scheduled_executor
+    {
+        edf_executor();
+
+        explicit edf_executor(std::size_t max_punits,
+            std::size_t min_punits = 1);
+
+        explicit edf_executor(
+            std::chrono::steady_clock::time_point deadline,
+            std::size_t max_punits);
+    };
 
 }}}
 

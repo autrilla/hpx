@@ -19,6 +19,7 @@
 #if defined(HPX_HAVE_STATIC_PRIORITY_SCHEDULER)
 #include <hpx/runtime/threads/policies/static_priority_queue_scheduler.hpp>
 #endif
+#include <hpx/runtime/threads/policies/edf_scheduler.hpp>
 #include <hpx/runtime/threads/detail/scheduling_loop.hpp>
 #include <hpx/runtime/threads/detail/create_thread.hpp>
 #include <hpx/runtime/threads/detail/set_thread_state.hpp>
@@ -61,6 +62,48 @@ namespace hpx { namespace threads { namespace executors { namespace detail
         max_punits_(max_punits), min_punits_(min_punits), curr_punits_(0),
         cookie_(0),
         self_(max_punits)
+    {
+        if (max_punits < min_punits)
+        {
+            HPX_THROW_EXCEPTION(bad_parameter,
+                "thread_pool_executor<Scheduler>::thread_pool_executor",
+                "max_punit shouldn't be smaller than min_punit");
+            return;
+        }
+        if (max_punits > hpx::get_os_thread_count())
+        {
+            HPX_THROW_EXCEPTION(bad_parameter,
+                "thread_pool_executor<Scheduler>::thread_pool_executor",
+                "max_punit shouldn't be larger than number of available "
+                "OS-threads");
+            return;
+        }
+        scheduler_.set_parent_pool(this_thread::get_pool());
+
+        // Inform the resource manager about this new executor. This causes the
+        // resource manager to interact with this executor using the
+        // manage_executor interface.
+        resource_manager& rm = resource_manager::get();
+        cookie_ = rm.initial_allocation(
+            new manage_thread_executor<thread_pool_executor>(*this));
+    }
+
+    template <typename Scheduler>
+    thread_pool_executor<Scheduler>::thread_pool_executor(
+            std::chrono::steady_clock::time_point deadline,
+            std::size_t max_punits, std::size_t min_punits,
+            char const* description)
+      : scheduler_(
+            typename Scheduler::init_parameter_type(max_punits, description),
+            false
+        ),
+        shutdown_sem_(0),
+        current_concurrency_(0), max_current_concurrency_(0),
+        tasks_scheduled_(0), tasks_completed_(0),
+        max_punits_(max_punits), min_punits_(min_punits), curr_punits_(0),
+        cookie_(0),
+        self_(max_punits),
+        deadline_(deadline)
     {
         if (max_punits < min_punits)
         {
@@ -157,6 +200,7 @@ namespace hpx { namespace threads { namespace executors { namespace detail
             util::one_shot(&thread_pool_executor::thread_function_nullary),
             this, std::move(f)), desc);
         data.stacksize = threads::get_stack_size(stacksize);
+        data.deadline = deadline_;
 
         // update statistics
         ++tasks_scheduled_;
@@ -517,5 +561,21 @@ namespace hpx { namespace threads { namespace executors
                 max_punits, min_punits))
     {}
 #endif
+
+    ///////////////////////////////////////////////////////////////////////////
+    edf_executor::edf_executor()
+      : scheduled_executor(new detail::thread_pool_executor<
+            policies::edf_scheduler<> >(
+                get_os_thread_count(), 1))
+    {}
+
+    edf_executor::edf_executor(
+            std::chrono::steady_clock::time_point deadline,
+            std::size_t max_punits)
+      : scheduled_executor(new detail::thread_pool_executor<
+            policies::edf_scheduler<> >(
+                deadline,
+                max_punits))
+    {}
 
 }}}

@@ -57,6 +57,7 @@ namespace hpx { namespace threads
             parent_phase(rhs.parent_phase),
 #endif
             priority(rhs.priority),
+            deadline(rhs.deadline),
             num_os_thread(rhs.num_os_thread),
             stacksize(rhs.stacksize),
             scheduler_base(rhs.scheduler_base)

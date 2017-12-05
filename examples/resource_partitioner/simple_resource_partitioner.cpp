@@ -13,6 +13,7 @@
 #include <hpx/runtime/threads/cpu_mask.hpp>
 #include <hpx/runtime/threads/detail/scheduled_thread_pool_impl.hpp>
 #include <hpx/runtime/threads/executors/pool_executor.hpp>
+#include <hpx/runtime/threads/executors/thread_pool_executors.hpp>
 #include <hpx/runtime/threads/policies/edf_scheduler.hpp>
 //
 #include <hpx/include/iostreams.hpp>
@@ -86,23 +87,7 @@ int hpx_main(boost::program_options::variables_map& vm)
     std::size_t async_count = num_threads * 1;
 
     // create an executor with high priority for important tasks
-    hpx::threads::executors::default_executor high_priority_executor(
-        hpx::threads::thread_priority_critical);
-    hpx::threads::executors::default_executor normal_priority_executor;
-
-    hpx::threads::scheduled_executor mpi_executor;
-    // create an executor on the mpi pool
-    if (use_pools)
-    {
-        // get executors
-        hpx::threads::executors::pool_executor mpi_exec("mpi");
-        mpi_executor = mpi_exec;
-        hpx::cout << "\n[hpx_main] got mpi executor " << std::endl;
-    }
-    else
-    {
-        mpi_executor = high_priority_executor;
-    }
+    hpx::threads::executors::edf_executor executor(std::chrono::steady_clock::now(), num_threads);
 
     // print partition characteristics
     std::cout << "\n\n[hpx_main] print resource_partitioner characteristics : "
@@ -118,13 +103,13 @@ int hpx_main(boost::program_options::variables_map& vm)
     print_system_characteristics();
 
     // use executor to schedule work on custom pool
-    hpx::future<void> future_1 = hpx::async(mpi_executor, &do_stuff, 5, true);
+    hpx::future<void> future_1 = hpx::async(executor, &do_stuff, 5, true);
 
     hpx::future<void> future_2 = future_1.then(
-        mpi_executor, [](hpx::future<void>&& f) { do_stuff(5, true); });
+        executor, [](hpx::future<void>&& f) { do_stuff(5, true); });
 
-    hpx::future<void> future_3 = future_2.then(mpi_executor,
-        [mpi_executor, high_priority_executor, async_count](
+    hpx::future<void> future_3 = future_2.then(executor,
+        [executor, async_count](
             hpx::future<void>&& f) mutable {
             hpx::future<void> future_4, future_5;
             for (std::size_t i = 0; i < async_count; i++)
@@ -132,12 +117,12 @@ int hpx_main(boost::program_options::variables_map& vm)
                 if (i % 2 == 0)
                 {
                     future_4 =
-                        hpx::async(mpi_executor, &do_stuff, async_count, false);
+                        hpx::async(executor, &do_stuff, async_count, false);
                 }
                 else
                 {
                     future_5 = hpx::async(
-                        high_priority_executor, &do_stuff, async_count, false);
+                        executor, &do_stuff, async_count, false);
                 }
             }
             // the last futures we made are stored in here
@@ -155,7 +140,7 @@ int hpx_main(boost::program_options::variables_map& vm)
     // test a parallel algorithm on custom pool with high priority
     hpx::parallel::static_chunk_size fixed(1);
     hpx::parallel::for_loop_strided(
-        hpx::parallel::execution::par.with(fixed).on(high_priority_executor), 0,
+        hpx::parallel::execution::par.with(fixed).on(executor), 0,
         loop_count, 1, [&](std::size_t i) {
             std::lock_guard<hpx::lcos::local::mutex> lock(m);
             if (thread_set.insert(std::this_thread::get_id()).second)
@@ -171,7 +156,7 @@ int hpx_main(boost::program_options::variables_map& vm)
 
     // test a parallel algorithm on custom pool with normal priority
     hpx::parallel::for_loop_strided(
-        hpx::parallel::execution::par.with(fixed).on(normal_priority_executor),
+        hpx::parallel::execution::par.with(fixed).on(executor),
         0, loop_count, 1, [&](std::size_t i) {
             std::lock_guard<hpx::lcos::local::mutex> lock(m);
             if (thread_set.insert(std::this_thread::get_id()).second)
@@ -188,7 +173,7 @@ int hpx_main(boost::program_options::variables_map& vm)
 
     // test a parallel algorithm on mpi_executor
     hpx::parallel::for_loop_strided(
-        hpx::parallel::execution::par.with(fixed).on(mpi_executor), 0,
+        hpx::parallel::execution::par.with(fixed).on(executor), 0,
         loop_count, 1, [&](std::size_t i) {
             std::lock_guard<hpx::lcos::local::mutex> lock(m);
             if (thread_set.insert(std::this_thread::get_id()).second)
@@ -210,7 +195,7 @@ int hpx_main(boost::program_options::variables_map& vm)
     hpx::parallel::for_loop_strided(
         hpx::parallel::execution::par
             .with(fixed /*, high_priority_async_policy*/)
-            .on(mpi_executor),
+            .on(executor),
         0, loop_count, 1,
         [&](std::size_t i)
         {
@@ -226,6 +211,12 @@ int hpx_main(boost::program_options::variables_map& vm)
     hpx::cout << "thread set contains " << std::dec << thread_set.size()
               << std::endl;
     thread_set.clear();
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    
+    
+    hpx::threads::executors::edf_executor executor2(std::chrono::steady_clock::now(), num_threads);
+    hpx::future<void> future_10 = hpx::async(executor2, &do_stuff, 5, true);
+    future_10.get();
 
     return hpx::finalize();
 }

@@ -546,28 +546,6 @@ namespace hpx { namespace threads { namespace policies
             }
         }
 
-        void move_task_items_from(edf_queue *src,
-            std::int64_t count)
-        {
-            task_description* task;
-            while (src->new_tasks_.pop(task))
-            {
-                --src->new_tasks_count_;
-
-
-                bool finish = count == ++new_tasks_count_;
-                if (new_tasks_.push(task))
-                {
-                    if (finish)
-                        break;
-                }
-                else
-                {
-                    --new_tasks_count_;
-                }
-            }
-        }
-
         /// Return the next thread to be executed, return false if none is
         /// available
         bool get_next_thread(threads::thread_data*& thrd,
@@ -584,17 +562,11 @@ namespace hpx { namespace threads { namespace policies
             std::lock_guard<std::mutex> lg(work_items_mutex_);
             if (0 != work_items_count && !work_items_.empty())
             {
-                auto queue_copy = work_items_;
-                while (!queue_copy.empty())
-                {
-                    auto t = queue_copy.top();
-                    std::cout << t << ", deadline " << t->get_deadline().time_since_epoch().count() << std::endl;
-                    queue_copy.pop();
-                }
                 thrd = work_items_.top();
+                if (thrd->get_deadline().time_since_epoch().count() != 0) {
+                    std::cout << "Scheduling thread " << thrd << " with deadline " << thrd->get_deadline().time_since_epoch().count() << std::endl;
+                }
                 work_items_.pop();
-                std::cout << "Scheduling next thread " << thrd << ", with description: "
-                << thrd->get_description() << ". Queue currently holds " << work_items_count << " items." << std::endl;
                 --work_items_count_;
                 return true;
             }
