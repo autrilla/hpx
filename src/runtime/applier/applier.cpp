@@ -88,6 +88,36 @@ namespace hpx { namespace applier
         app->get_thread_manager().register_thread(data, id, state, run_now, ec);
         return id;
     }
+    
+    
+    threads::thread_id_type register_thread_nullary_with_deadline(
+                                                    std::chrono::steady_clock::time_point deadline,
+                                                    util::unique_function_nonser<void()> && func,
+                                                    util::thread_description const& desc,
+                                                    threads::thread_state_enum state, bool run_now,
+                                                    threads::thread_priority priority, std::size_t os_thread,
+                                                    threads::thread_stacksize stacksize, error_code& ec)
+    {
+        hpx::applier::applier* app = hpx::applier::get_applier_ptr();
+        if (nullptr == app)
+        {
+            HPX_THROWS_IF(ec, invalid_status,
+                          "hpx::applier::register_thread_nullary",
+                          "global applier object is not accessible");
+            return threads::invalid_thread_id;
+        }
+        
+        util::thread_description d =
+        desc ? desc : util::thread_description(func, "register_thread_nullary");
+        
+        threads::thread_init_data data(
+                                       util::bind(util::one_shot(&thread_function_nullary), std::move(func)),
+                                       d, 0, priority, os_thread, threads::get_stack_size(stacksize));
+        data.deadline = deadline;
+        threads::thread_id_type id = threads::invalid_thread_id;
+        app->get_thread_manager().register_thread(data, id, state, run_now, ec);
+        return id;
+    }
 
     threads::thread_id_type register_thread(
         util::unique_function_nonser<void(threads::thread_state_ex_enum)> && func,

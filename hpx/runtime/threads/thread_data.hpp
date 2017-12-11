@@ -667,6 +667,7 @@ namespace hpx { namespace threads
             backtrace_ = nullptr;
 #endif
             priority_ = init_data.priority;
+            deadline_ = init_data.deadline;
             requested_interrupt_ = false;
             enabled_interrupt_ = true;
             ran_exit_funcs_ = false;

@@ -802,6 +802,18 @@ namespace hpx { namespace applier
         threads::thread_stacksize stacksize = threads::thread_stacksize_default,
         error_code& ec = throws);
 
+
+    HPX_API_EXPORT threads::thread_id_type register_thread_nullary_with_deadline(
+        std::chrono::steady_clock::time_point deadline,
+        util::unique_function_nonser<void()> && func,
+        util::thread_description const& description = util::thread_description(),
+        threads::thread_state_enum initial_state = threads::pending,
+        bool run_now = true,
+        threads::thread_priority priority = threads::thread_priority_normal,
+        std::size_t os_thread = std::size_t(-1),
+        threads::thread_stacksize stacksize = threads::thread_stacksize_default,
+        error_code& ec = throws);
+
     ///////////////////////////////////////////////////////////////////////////
     /// \brief Create a new \a thread using the given data.
     ///

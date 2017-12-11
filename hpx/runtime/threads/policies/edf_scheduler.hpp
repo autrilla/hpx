@@ -105,6 +105,7 @@ namespace hpx { namespace threads { namespace policies
                                thread_state_enum initial_state, bool run_now, error_code& ec,
                                std::size_t num_thread)
             {
+                std::lock_guard<std::mutex> lock{queue_lock_};
                 queue_->create_thread(data, id, initial_state,
                                       run_now, ec);
             }
@@ -112,12 +113,14 @@ namespace hpx { namespace threads { namespace policies
             virtual bool get_next_thread(std::size_t num_thread, bool running,
                                          std::int64_t& idle_loop_count, threads::thread_data*& thrd)
             {
+                std::lock_guard<std::mutex> lock{queue_lock_};
                 return queue_->get_next_thread(thrd);
             }
             
             void schedule_thread(threads::thread_data* thrd, std::size_t num_thread,
                                  thread_priority priority = thread_priority_normal)
             {
+                std::lock_guard<std::mutex> lock{queue_lock_};
                 queue_->schedule_thread(thrd);
             }
             

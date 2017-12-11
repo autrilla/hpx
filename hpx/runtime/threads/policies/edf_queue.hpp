@@ -79,7 +79,7 @@ namespace hpx { namespace threads { namespace policies
         typedef thread_data thread_description;
         
         static constexpr auto work_items_ordering = [](thread_description* left, thread_description* right) {
-            return left->get_deadline() < right->get_deadline();
+            return left->get_deadline() > right->get_deadline();
         };
 
         typedef std::priority_queue<
@@ -481,6 +481,7 @@ namespace hpx { namespace threads { namespace policies
             if (id) *id = invalid_thread_id;
 
             if (run_now)
+            //if (true)
             {
                 threads::thread_id_type thrd;
 

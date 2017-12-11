@@ -13,7 +13,7 @@
 #include <hpx/runtime/threads/cpu_mask.hpp>
 #include <hpx/runtime/threads/detail/scheduled_thread_pool_impl.hpp>
 #include <hpx/runtime/threads/executors/pool_executor.hpp>
-#include <hpx/runtime/threads/executors/thread_pool_executors.hpp>
+#include <hpx/runtime/threads/executors/default_edf_executor.hpp>
 #include <hpx/runtime/threads/policies/edf_scheduler.hpp>
 //
 #include <hpx/include/iostreams.hpp>
@@ -56,6 +56,10 @@ using namespace hpx::threads::policies;
 // dummy function we will call using async
 void do_stuff(std::size_t n, bool printout)
 {
+    for (auto i = 0; i < 1000000000; i++)
+    {
+        asm ("");
+    }
     if (printout)
         hpx::cout << "[do stuff] " << n << "\n";
     for (std::size_t i(0); i < n; ++i)
@@ -87,7 +91,7 @@ int hpx_main(boost::program_options::variables_map& vm)
     std::size_t async_count = num_threads * 1;
 
     // create an executor with high priority for important tasks
-    hpx::threads::executors::edf_executor executor(std::chrono::steady_clock::now(), num_threads);
+    hpx::threads::executors::default_edf_executor executor(std::chrono::steady_clock::now());
 
     // print partition characteristics
     std::cout << "\n\n[hpx_main] print resource_partitioner characteristics : "
@@ -101,122 +105,17 @@ int hpx_main(boost::program_options::variables_map& vm)
 
     // print system characteristics
     print_system_characteristics();
-
-    // use executor to schedule work on custom pool
-    hpx::future<void> future_1 = hpx::async(executor, &do_stuff, 5, true);
-
-    hpx::future<void> future_2 = future_1.then(
-        executor, [](hpx::future<void>&& f) { do_stuff(5, true); });
-
-    hpx::future<void> future_3 = future_2.then(executor,
-        [executor, async_count](
-            hpx::future<void>&& f) mutable {
-            hpx::future<void> future_4, future_5;
-            for (std::size_t i = 0; i < async_count; i++)
-            {
-                if (i % 2 == 0)
-                {
-                    future_4 =
-                        hpx::async(executor, &do_stuff, async_count, false);
-                }
-                else
-                {
-                    future_5 = hpx::async(
-                        executor, &do_stuff, async_count, false);
-                }
-            }
-            // the last futures we made are stored in here
-            if (future_4.valid())
-                future_4.get();
-            if (future_5.valid())
-                future_5.get();
-        });
-
-    future_3.get();
-
-    hpx::lcos::local::mutex m;
-    std::set<std::thread::id> thread_set;
-
-    // test a parallel algorithm on custom pool with high priority
-    hpx::parallel::static_chunk_size fixed(1);
-    hpx::parallel::for_loop_strided(
-        hpx::parallel::execution::par.with(fixed).on(executor), 0,
-        loop_count, 1, [&](std::size_t i) {
-            std::lock_guard<hpx::lcos::local::mutex> lock(m);
-            if (thread_set.insert(std::this_thread::get_id()).second)
-            {
-                hpx::cout << std::hex << hpx::this_thread::get_id() << " "
-                          << std::hex << std::this_thread::get_id()
-                          << " high priority i " << std::dec << i << std::endl;
-            }
-        });
-    hpx::cout << "thread set contains " << std::dec << thread_set.size()
-              << std::endl;
-    thread_set.clear();
-
-    // test a parallel algorithm on custom pool with normal priority
-    hpx::parallel::for_loop_strided(
-        hpx::parallel::execution::par.with(fixed).on(executor),
-        0, loop_count, 1, [&](std::size_t i) {
-            std::lock_guard<hpx::lcos::local::mutex> lock(m);
-            if (thread_set.insert(std::this_thread::get_id()).second)
-            {
-                hpx::cout << std::hex << hpx::this_thread::get_id() << " "
-                          << std::hex << std::this_thread::get_id()
-                          << " normal priority i " << std::dec << i
-                          << std::endl;
-            }
-        });
-    hpx::cout << "thread set contains " << std::dec << thread_set.size()
-              << std::endl;
-    thread_set.clear();
-
-    // test a parallel algorithm on mpi_executor
-    hpx::parallel::for_loop_strided(
-        hpx::parallel::execution::par.with(fixed).on(executor), 0,
-        loop_count, 1, [&](std::size_t i) {
-            std::lock_guard<hpx::lcos::local::mutex> lock(m);
-            if (thread_set.insert(std::this_thread::get_id()).second)
-            {
-                hpx::cout << std::hex << hpx::this_thread::get_id() << " "
-                          << std::hex << std::this_thread::get_id()
-                          << " mpi pool i " << std::dec << i << std::endl;
-            }
-        });
-    hpx::cout << "thread set contains " << std::dec << thread_set.size()
-              << std::endl;
-    thread_set.clear();
-
-//     auto high_priority_async_policy =
-//         hpx::launch::async_policy(hpx::threads::thread_priority_critical);
-//     auto normal_priority_async_policy = hpx::launch::async_policy();
-
-    // test a parallel algorithm on custom pool with high priority
-    hpx::parallel::for_loop_strided(
-        hpx::parallel::execution::par
-            .with(fixed /*, high_priority_async_policy*/)
-            .on(executor),
-        0, loop_count, 1,
-        [&](std::size_t i)
-        {
-            std::lock_guard<hpx::lcos::local::mutex> lock(m);
-            if (thread_set.insert(std::this_thread::get_id()).second)
-            {
-                hpx::cout << std::hex << hpx::this_thread::get_id() << " "
-                          << std::hex << std::this_thread::get_id()
-                          << " high priority mpi i " << std::dec << i
-                          << std::endl;
-            }
-        });
-    hpx::cout << "thread set contains " << std::dec << thread_set.size()
-              << std::endl;
-    thread_set.clear();
-    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     
+    hpx::threads::executors::default_edf_executor executor2(std::chrono::steady_clock::now());
+    std::chrono::steady_clock::time_point long_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+    hpx::threads::executors::default_edf_executor executor3(long_deadline);
+    for (auto i = 0; i < 100; i++)
+    {
+        hpx::async(executor2, &do_stuff, 1, true);
+        hpx::async(executor3, &do_stuff, 2, true);
+    }
     
-    hpx::threads::executors::edf_executor executor2(std::chrono::steady_clock::now(), num_threads);
-    hpx::future<void> future_10 = hpx::async(executor2, &do_stuff, 5, true);
-    future_10.get();
+    std::cout << "Scheduled all work" << std::endl;
 
     return hpx::finalize();
 }
