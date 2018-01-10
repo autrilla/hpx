@@ -36,7 +36,6 @@ namespace hpx { namespace threads { namespace executors { namespace detail
         priority_(thread_priority_default),
         os_thread_(std::size_t(-1))
     {
-        std::cout << "Created default_edf_executor with custom deadline of " << deadline.time_since_epoch().count() << std::endl;
         deadline_ = deadline;
     }
     

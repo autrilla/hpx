@@ -17,6 +17,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <utility>
+#include <chrono>
 
 namespace hpx { namespace threads
 {
@@ -39,6 +40,7 @@ namespace hpx { namespace threads
             parent_locality_id(0), parent_id(nullptr), parent_phase(0),
 #endif
             priority(thread_priority_normal),
+            deadline(std::chrono::steady_clock::time_point::max()),
             num_os_thread(std::size_t(-1)),
             stacksize(get_default_stack_size()),
             scheduler_base(nullptr)

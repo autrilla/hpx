@@ -110,6 +110,17 @@ namespace hpx { namespace threads { namespace policies
                                       run_now, ec);
             }
             
+            std::chrono::steady_clock::time_point peek_next_deadline()
+            {
+                return queue_->peek_next_deadline();
+            }
+            
+            void peek_next_thread(threads::thread_data*& thrd)
+            {
+                std::lock_guard<std::mutex> lock{queue_lock_};
+                return queue_->peek_next_thread(thrd);
+            }
+            
             virtual bool get_next_thread(std::size_t num_thread, bool running,
                                          std::int64_t& idle_loop_count, threads::thread_data*& thrd)
             {

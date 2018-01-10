@@ -78,14 +78,14 @@ namespace hpx { namespace threads { namespace policies
         typedef util::tuple<thread_init_data, thread_state_enum> task_description;
         typedef thread_data thread_description;
         
-        static constexpr auto work_items_ordering = [](thread_description* left, thread_description* right) {
+        static bool work_items_ordering(thread_description* left, thread_description* right) {
             return left->get_deadline() > right->get_deadline();
         };
 
         typedef std::priority_queue<
             thread_description*,
             std::vector<thread_description*>,
-            decltype(work_items_ordering)
+            decltype(&work_items_ordering)
         > work_items_type;
 
         typedef typename StagedQueuing::template
@@ -422,7 +422,7 @@ namespace hpx { namespace threads { namespace policies
             max_delete_count(detail::get_max_delete_count()),
             max_terminated_threads(detail::get_max_terminated_threads()),
             thread_map_count_(0),
-            work_items_(work_items_ordering),
+            work_items_(&work_items_ordering),
             work_items_count_(0),
             terminated_items_(128),
             terminated_items_count_(0),
@@ -479,56 +479,43 @@ namespace hpx { namespace threads { namespace policies
         {
             // thread has not been created yet
             if (id) *id = invalid_thread_id;
-
-            if (run_now)
-            //if (true)
-            {
                 threads::thread_id_type thrd;
 
                 // The mutex can not be locked while a new thread is getting
                 // created, as it might have that the current HPX thread gets
                 // suspended.
-                {
-                    std::unique_lock<mutex_type> lk(mtx_);
+            {
+                std::unique_lock<mutex_type> lk(mtx_);
 
-                    create_thread_object(thrd, data, initial_state, lk);
+                create_thread_object(thrd, data, initial_state, lk);
 
-                    // add a new entry in the map for this thread
-                    std::pair<thread_map_type::iterator, bool> p =
-                        thread_map_.insert(thrd);
+                // add a new entry in the map for this thread
+                std::pair<thread_map_type::iterator, bool> p =
+                    thread_map_.insert(thrd);
 
-                    if (HPX_UNLIKELY(!p.second)) {
-                        HPX_THROWS_IF(ec, hpx::out_of_memory,
-                            "threadmanager::register_thread",
-                            "Couldn't add new thread to the map of threads");
-                        return;
-                    }
-                    ++thread_map_count_;
-
-                    // this thread has to be in the map now
-                    HPX_ASSERT(thread_map_.find(thrd.get()) != thread_map_.end());
-                    HPX_ASSERT(thrd->get_pool() == &memory_pool_);
-
-                    // push the new thread in the pending queue thread
-                    if (initial_state == pending)
-                        schedule_thread(thrd.get());
-
-                    // return the thread_id of the newly created thread
-                    if (id) *id = std::move(thrd);
-
-                    if (&ec != &throws)
-                        ec = make_success_code();
+                if (HPX_UNLIKELY(!p.second)) {
+                    HPX_THROWS_IF(ec, hpx::out_of_memory,
+                        "threadmanager::register_thread",
+                        "Couldn't add new thread to the map of threads");
                     return;
                 }
-            }
+                ++thread_map_count_;
 
-            // do not execute the work, but register a task description for
-            // later thread creation
-            ++new_tasks_count_;
-            new_tasks_.push(new task_description( //-V106
-                std::move(data), initial_state));
-            if (&ec != &throws)
-                ec = make_success_code();
+                // this thread has to be in the map now
+                HPX_ASSERT(thread_map_.find(thrd.get()) != thread_map_.end());
+                HPX_ASSERT(thrd->get_pool() == &memory_pool_);
+
+                // push the new thread in the pending queue thread
+                if (initial_state == pending)
+                    schedule_thread(thrd.get());
+
+                // return the thread_id of the newly created thread
+                if (id) *id = std::move(thrd);
+
+                if (&ec != &throws)
+                    ec = make_success_code();
+                return;
+            }
         }
 
         void move_work_items_from(edf_queue *src, std::int64_t count)
@@ -564,14 +551,28 @@ namespace hpx { namespace threads { namespace policies
             if (0 != work_items_count && !work_items_.empty())
             {
                 thrd = work_items_.top();
-                if (thrd->get_deadline().time_since_epoch().count() != 0) {
-                    std::cout << "Scheduling thread " << thrd << " with deadline " << thrd->get_deadline().time_since_epoch().count() << std::endl;
-                }
                 work_items_.pop();
                 --work_items_count_;
+                next_deadline_ = work_items_.top()->get_deadline();
                 return true;
             }
             return false;
+        }
+        
+        void peek_next_thread(threads::thread_data*& thrd)
+        {
+            std::int64_t work_items_count =
+            work_items_count_.load(std::memory_order_relaxed);
+            std::lock_guard<std::mutex> lg(work_items_mutex_);
+            if (0 != work_items_count && !work_items_.empty())
+            {
+                thrd = work_items_.top();
+            }
+        }
+        
+        std::chrono::steady_clock::time_point peek_next_deadline()
+        {
+            return next_deadline_;
         }
 
         /// Schedule the passed thread
@@ -580,6 +581,7 @@ namespace hpx { namespace threads { namespace policies
             ++work_items_count_;
             std::lock_guard<std::mutex> lg(work_items_mutex_);
             work_items_.push(thrd);
+            next_deadline_ = work_items_.top()->get_deadline();
         }
 
         /// Destroy the passed thread as it has been terminated
@@ -779,6 +781,8 @@ namespace hpx { namespace threads { namespace policies
         ///< mapping of thread id's to HPX-threads
         std::atomic<std::int64_t> thread_map_count_;
         ///< overall count of work items
+        
+        std::chrono::steady_clock::time_point next_deadline_;
 
         work_items_type work_items_;
         ///< list of active work items

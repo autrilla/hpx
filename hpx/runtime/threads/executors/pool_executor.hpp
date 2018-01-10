@@ -29,6 +29,9 @@ namespace hpx { namespace threads { namespace executors
         {
         public:
             pool_executor(const std::string& pool_name);
+            
+            pool_executor(const std::string& pool_name,
+                          std::chrono::steady_clock::time_point deadline);
 
             pool_executor(const std::string& pool_name,
                     thread_stacksize stacksize);
@@ -85,6 +88,7 @@ namespace hpx { namespace threads { namespace executors
             // task properties
             thread_stacksize stacksize_;
             thread_priority priority_;
+            std::chrono::steady_clock::time_point deadline_;
 
             // protect scheduler initialization
             typedef compat::mutex mutex_type;
@@ -97,6 +101,9 @@ namespace hpx { namespace threads { namespace executors
     {
         pool_executor(const std::string& pool_name);
 
+        pool_executor(const std::string& pool_name,
+                      std::chrono::steady_clock::time_point deadline);
+        
         pool_executor(const std::string& pool_name,
                 thread_stacksize stacksize);
 

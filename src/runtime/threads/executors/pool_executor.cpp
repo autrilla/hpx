@@ -24,6 +24,16 @@ namespace hpx { namespace threads { namespace executors
             , stacksize_(thread_stacksize_default)
             , priority_(thread_priority_default)
         {}
+        
+        
+        pool_executor::pool_executor(
+                std::string const& pool_name,
+                std::chrono::steady_clock::time_point deadline)
+        : pool_(hpx::threads::get_thread_manager().get_pool(pool_name))
+        , stacksize_(thread_stacksize_default)
+        , priority_(thread_priority_default)
+        , deadline_(deadline)
+        {}
 
         pool_executor::pool_executor(const std::string& pool_name,
                 thread_stacksize stacksize)
@@ -111,6 +121,7 @@ namespace hpx { namespace threads { namespace executors
                 stacksize = stacksize_;
             data.stacksize = threads::get_stack_size(stacksize);
             data.priority = priority_;
+            data.deadline = deadline_;
 
             threads::thread_id_type id = threads::invalid_thread_id;
             pool_.create_thread(data, id, suspended, true, ec);
@@ -166,6 +177,13 @@ namespace hpx { namespace threads { namespace executors
     pool_executor::pool_executor(
         const std::string& pool_name)
       : scheduled_executor(new detail::pool_executor(pool_name))
+    {}
+    
+    
+    pool_executor::pool_executor(
+        const std::string& pool_name,
+        std::chrono::steady_clock::time_point deadline)
+    : scheduled_executor(new detail::pool_executor(pool_name, deadline))
     {}
 
     pool_executor::pool_executor(const std::string& pool_name,
