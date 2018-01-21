@@ -19,6 +19,7 @@
 #include <hpx/runtime/threads_fwd.hpp>
 #include <hpx/throw_exception.hpp>
 #include <hpx/util/assert.hpp>
+#include <hpx/util/spinlock.hpp>
 #include <hpx/util/logging.hpp>
 #include <hpx/util_fwd.hpp>
 
@@ -91,13 +92,13 @@ namespace hpx { namespace threads { namespace policies
             
             void abort_all_suspended_threads()
             {
-                std::lock_guard<std::mutex> lock{queue_lock_};
+                std::lock_guard<hpx::util::spinlock> lock{queue_lock_};
                 queue_->abort_all_suspended_threads();
             }
             
             bool cleanup_terminated(bool delete_all = false)
             {
-                std::lock_guard<std::mutex> lock{queue_lock_};
+                std::lock_guard<hpx::util::spinlock> lock{queue_lock_};
                 return queue_->cleanup_terminated(delete_all);
             }
             
@@ -105,7 +106,7 @@ namespace hpx { namespace threads { namespace policies
                                thread_state_enum initial_state, bool run_now, error_code& ec,
                                std::size_t num_thread)
             {
-                std::lock_guard<std::mutex> lock{queue_lock_};
+                std::lock_guard<hpx::util::spinlock> lock{queue_lock_};
                 queue_->create_thread(data, id, initial_state,
                                       run_now, ec);
             }
@@ -117,21 +118,21 @@ namespace hpx { namespace threads { namespace policies
             
             void peek_next_thread(threads::thread_data*& thrd)
             {
-                std::lock_guard<std::mutex> lock{queue_lock_};
+                std::lock_guard<hpx::util::spinlock> lock{queue_lock_};
                 return queue_->peek_next_thread(thrd);
             }
             
             virtual bool get_next_thread(std::size_t num_thread, bool running,
                                          std::int64_t& idle_loop_count, threads::thread_data*& thrd)
             {
-                std::lock_guard<std::mutex> lock{queue_lock_};
+                std::lock_guard<hpx::util::spinlock> lock{queue_lock_};
                 return queue_->get_next_thread(thrd);
             }
             
             void schedule_thread(threads::thread_data* thrd, std::size_t num_thread,
                                  thread_priority priority = thread_priority_normal)
             {
-                std::lock_guard<std::mutex> lock{queue_lock_};
+                std::lock_guard<hpx::util::spinlock> lock{queue_lock_};
                 queue_->schedule_thread(thrd);
             }
             
@@ -139,19 +140,19 @@ namespace hpx { namespace threads { namespace policies
                                       std::size_t num_thread,
                                       thread_priority priority = thread_priority_normal)
             {
-                std::lock_guard<std::mutex> lock{queue_lock_};
+                std::lock_guard<hpx::util::spinlock> lock{queue_lock_};
                 queue_->schedule_thread(thrd, true);
             }
             
             bool destroy_thread(threads::thread_data* thrd, std::int64_t& busy_count)
             {
-                std::lock_guard<std::mutex> lock{queue_lock_};
+                std::lock_guard<hpx::util::spinlock> lock{queue_lock_};
                 return queue_->destroy_thread(thrd, busy_count);
             }
             
             std::int64_t get_queue_length(std::size_t num_thread = std::size_t(-1)) const
             {
-                std::lock_guard<std::mutex> lock{queue_lock_};
+                std::lock_guard<hpx::util::spinlock> lock{queue_lock_};
                 return queue_->get_queue_length();
             }
             
@@ -159,7 +160,7 @@ namespace hpx { namespace threads { namespace policies
                                           thread_priority priority = thread_priority_default,
                                           std::size_t num_thread = std::size_t(-1), bool reset = false) const
             {
-                std::lock_guard<std::mutex> lock{queue_lock_};
+                std::lock_guard<hpx::util::spinlock> lock{queue_lock_};
                 // Return thread count of one specific queue.
                 std::int64_t count = 0;
                 if (std::size_t(-1) != num_thread)
@@ -214,14 +215,14 @@ namespace hpx { namespace threads { namespace policies
                                    util::function_nonser<bool(thread_id_type)> const& f,
                                    thread_state_enum state = unknown) const
             {
-                std::lock_guard<std::mutex> lock{queue_lock_};
+                std::lock_guard<hpx::util::spinlock> lock{queue_lock_};
                 return queue_->enumerate_threads(f, state);
             }
             
             virtual bool wait_or_add_new(std::size_t num_thread, bool running,
                                          std::int64_t& idle_loop_count)
             {
-                std::lock_guard<std::mutex> lock{queue_lock_};
+                std::lock_guard<hpx::util::spinlock> lock{queue_lock_};
                 std::size_t added = 0;
                 return queue_->wait_or_add_new(running, idle_loop_count, added);
             }
@@ -241,7 +242,7 @@ namespace hpx { namespace threads { namespace policies
             }
             
         private:
-            mutable std::mutex queue_lock_;
+            mutable hpx::util::spinlock queue_lock_;
             threads::thread_pool memory_pool_;
             
         protected:
