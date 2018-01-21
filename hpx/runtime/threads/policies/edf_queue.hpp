@@ -21,7 +21,6 @@
 #include <hpx/util/get_and_reset_value.hpp>
 #include <hpx/util/high_resolution_clock.hpp>
 #include <hpx/util/unlock_guard.hpp>
-#include <hpx/util/spinlock.hpp>
 
 #ifdef HPX_HAVE_THREAD_CREATION_AND_CLEANUP_RATES
 #   include <hpx/util/tick_counter.hpp>
@@ -47,7 +46,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 namespace hpx { namespace threads { namespace policies
 {
-    template <typename Mutex = hpx::util::spinlock,
+    template <typename Mutex = compat::mutex,
         typename PendingQueuing = lockfree_lifo,
         typename StagedQueuing = lockfree_lifo,
         typename TerminatedQueuing = lockfree_fifo>
@@ -548,7 +547,7 @@ namespace hpx { namespace threads { namespace policies
                 return false;
             }
 
-            std::lock_guard<hpx::util::spinlock> lg(work_items_mutex_);
+            std::lock_guard<std::mutex> lg(work_items_mutex_);
             if (0 != work_items_count && !work_items_.empty())
             {
                 thrd = work_items_.top();
@@ -564,7 +563,7 @@ namespace hpx { namespace threads { namespace policies
         {
             std::int64_t work_items_count =
             work_items_count_.load(std::memory_order_relaxed);
-            std::lock_guard<hpx::util::spinlock> lg(work_items_mutex_);
+            std::lock_guard<std::mutex> lg(work_items_mutex_);
             if (0 != work_items_count && !work_items_.empty())
             {
                 thrd = work_items_.top();
@@ -580,7 +579,7 @@ namespace hpx { namespace threads { namespace policies
         void schedule_thread(threads::thread_data* thrd, bool other_end = false)
         {
             ++work_items_count_;
-            std::lock_guard<hpx::util::spinlock> lg(work_items_mutex_);
+            std::lock_guard<std::mutex> lg(work_items_mutex_);
             work_items_.push(thrd);
             next_deadline_ = work_items_.top()->get_deadline();
         }
@@ -789,7 +788,7 @@ namespace hpx { namespace threads { namespace policies
         ///< list of active work items
         std::atomic<std::int64_t> work_items_count_;
         ///< count of active work items
-        hpx::util::spinlock work_items_mutex_;
+        std::mutex work_items_mutex_;
         
         terminated_items_type terminated_items_;     ///< list of terminated threads
         std::atomic<std::int64_t> terminated_items_count_;
