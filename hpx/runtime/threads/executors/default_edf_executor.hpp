@@ -22,100 +22,111 @@
 
 #include <hpx/config/warnings_prefix.hpp>
 
-namespace hpx { namespace threads { namespace executors
-{
-    namespace detail
-    {
-        class HPX_EXPORT default_edf_executor
-          : public threads::detail::scheduled_executor_base
-        {
-        public:
-            default_edf_executor();
-            
-            default_edf_executor(std::chrono::steady_clock::time_point deadline);
-
-            default_edf_executor(thread_priority priority,
-                thread_stacksize stacksize, std::size_t os_thread);
-
-            // Schedule the specified function for execution in this executor.
-            // Depending on the subclass implementation, this may block in some
-            // situations.
-            void add(closure_type&& f,
-                util::thread_description const& description,
-                threads::thread_state_enum initial_state, bool run_now,
-                threads::thread_stacksize stacksize, error_code& ec);
-
-            // Schedule given function for execution in this executor no sooner
-            // than time abs_time. This call never blocks, and may violate
-            // bounds on the executor's queue size.
-            void add_at(
-                util::steady_clock::time_point const& abs_time,
-                closure_type&& f, util::thread_description const& description,
-                threads::thread_stacksize stacksize, error_code& ec);
-
-            // Schedule given function for execution in this executor no sooner
-            // than time rel_time from now. This call never blocks, and may
-            // violate bounds on the executor's queue size.
-            inline void add_after(
-                util::steady_clock::duration const& rel_time,
-                closure_type&& f, util::thread_description const& description,
-                threads::thread_stacksize stacksize, error_code& ec)
+namespace hpx {
+namespace threads {
+    namespace executors {
+        namespace detail {
+            class HPX_EXPORT default_edf_executor
+              : public threads::detail::scheduled_executor_base
             {
-                return add_at(util::steady_clock::now() + rel_time,
-                    std::move(f), description, stacksize, ec);
+            public:
+                default_edf_executor();
+
+                default_edf_executor(
+                    std::chrono::steady_clock::time_point deadline);
+
+                default_edf_executor(thread_priority priority,
+                    thread_stacksize stacksize, std::size_t os_thread);
+
+                // Schedule the specified function for execution in this executor.
+                // Depending on the subclass implementation, this may block in some
+                // situations.
+                void add(closure_type&& f,
+                    util::thread_description const& description,
+                    threads::thread_state_enum initial_state, bool run_now,
+                    threads::thread_stacksize stacksize, error_code& ec);
+
+                // Schedule given function for execution in this executor no sooner
+                // than time abs_time. This call never blocks, and may violate
+                // bounds on the executor's queue size.
+                void add_at(util::steady_clock::time_point const& abs_time,
+                    closure_type&& f,
+                    util::thread_description const& description,
+                    threads::thread_stacksize stacksize, error_code& ec);
+
+                // Schedule given function for execution in this executor no sooner
+                // than time rel_time from now. This call never blocks, and may
+                // violate bounds on the executor's queue size.
+                inline void add_after(
+                    util::steady_clock::duration const& rel_time,
+                    closure_type&& f,
+                    util::thread_description const& description,
+                    threads::thread_stacksize stacksize, error_code& ec)
+                {
+                    return add_at(util::steady_clock::now() + rel_time,
+                        std::move(f), description, stacksize, ec);
+                }
+
+                // Return an estimate of the number of waiting tasks.
+                std::uint64_t num_pending_closures(error_code& ec) const;
+
+                // Reset internal (round robin) thread distribution scheme
+                void reset_thread_distribution();
+
+                /// Set the new scheduler mode
+                void set_scheduler_mode(threads::policies::scheduler_mode mode);
+
+            protected:
+                // Return the requested policy element
+                std::size_t get_policy_element(
+                    threads::detail::executor_parameter p,
+                    error_code& ec) const;
+
+            private:
+                thread_stacksize stacksize_;
+                thread_priority priority_;
+                std::size_t os_thread_;
+                std::chrono::steady_clock::time_point deadline_;
+            };
+        }
+
+        ///////////////////////////////////////////////////////////////////////////
+        struct default_edf_executor : public scheduled_executor
+        {
+            default_edf_executor()
+              : scheduled_executor(new detail::default_edf_executor())
+            {
             }
 
-            // Return an estimate of the number of waiting tasks.
-            std::uint64_t num_pending_closures(error_code& ec) const;
+            default_edf_executor(std::chrono::steady_clock::time_point deadline)
+              : scheduled_executor(new detail::default_edf_executor(deadline))
+            {
+            }
 
-            // Reset internal (round robin) thread distribution scheme
-            void reset_thread_distribution();
+            default_edf_executor(thread_stacksize stacksize)
+              : scheduled_executor(new detail::default_edf_executor(
+                    thread_priority_default, stacksize, std::size_t(-1)))
+            {
+            }
 
-            /// Set the new scheduler mode
-            void set_scheduler_mode(threads::policies::scheduler_mode mode);
-
-        protected:
-            // Return the requested policy element
-            std::size_t get_policy_element(
-                threads::detail::executor_parameter p, error_code& ec) const;
-
-        private:
-            thread_stacksize stacksize_;
-            thread_priority priority_;
-            std::size_t os_thread_;
-            std::chrono::steady_clock::time_point deadline_;
-        };
-    }
-
-    ///////////////////////////////////////////////////////////////////////////
-    struct default_edf_executor : public scheduled_executor
-    {
-        default_edf_executor()
-          : scheduled_executor(new detail::default_edf_executor())
-        {}
-
-        default_edf_executor(std::chrono::steady_clock::time_point deadline)
-          : scheduled_executor(new detail::default_edf_executor(deadline))
-        {}
-
-        default_edf_executor(thread_stacksize stacksize)
-          : scheduled_executor(new detail::default_edf_executor(
-                thread_priority_default, stacksize, std::size_t(-1)))
-        {}
-
-        default_edf_executor(thread_priority priority,
+            default_edf_executor(thread_priority priority,
                 thread_stacksize stacksize = thread_stacksize_default,
                 std::size_t os_thread = std::size_t(-1))
-          : scheduled_executor(new detail::default_edf_executor(
-                priority, stacksize, os_thread))
-        {}
+              : scheduled_executor(new detail::default_edf_executor(
+                    priority, stacksize, os_thread))
+            {
+            }
 
-        default_edf_executor(std::size_t os_thread)
-          : scheduled_executor(new detail::default_edf_executor(
-                thread_priority_default, thread_stacksize_default, os_thread))
-        {}
-    };
-}}}
+            default_edf_executor(std::size_t os_thread)
+              : scheduled_executor(
+                    new detail::default_edf_executor(thread_priority_default,
+                        thread_stacksize_default, os_thread))
+            {
+            }
+        };
+    }
+}
+}
 
 #include <hpx/config/warnings_suffix.hpp>
 
