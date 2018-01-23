@@ -19,6 +19,7 @@
 #include <hpx/runtime/threads_fwd.hpp>
 #include <hpx/throw_exception.hpp>
 #include <hpx/util/assert.hpp>
+#include <hpx/util/spinlock.hpp>
 #include <hpx/util/logging.hpp>
 #include <hpx/util_fwd.hpp>
 
@@ -36,7 +37,7 @@
 namespace hpx {
 namespace threads {
     namespace policies {
-        template <typename Mutex = compat::mutex,
+        template <typename Mutex = hpx::util::spinlock,
             typename PendingQueuing = lockfree_fifo,
             typename StagedQueuing = lockfree_fifo,
             typename TerminatedQueuing = lockfree_lifo>

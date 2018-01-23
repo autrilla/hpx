@@ -20,6 +20,7 @@
 #include <hpx/util/function.hpp>
 #include <hpx/util/get_and_reset_value.hpp>
 #include <hpx/util/high_resolution_clock.hpp>
+#include <hpx/util/spinlock.hpp>
 #include <hpx/util/unlock_guard.hpp>
 
 #ifdef HPX_HAVE_THREAD_CREATION_AND_CLEANUP_RATES
@@ -47,7 +48,7 @@
 namespace hpx {
 namespace threads {
     namespace policies {
-        template <typename Mutex = compat::mutex,
+      template <typename Mutex = hpx::util::spinlock,
             typename PendingQueuing = lockfree_lifo,
             typename StagedQueuing = lockfree_lifo,
             typename TerminatedQueuing = lockfree_fifo>
@@ -585,7 +586,7 @@ namespace threads {
                     return false;
                 }
 
-                std::lock_guard<std::mutex> lg(work_items_mutex_);
+                std::lock_guard<mutex_type> lg(work_items_mutex_);
                 if (0 != work_items_count && !work_items_.empty())
                 {
                     thrd = work_items_.top();
@@ -601,7 +602,7 @@ namespace threads {
             {
                 std::int64_t work_items_count =
                     work_items_count_.load(std::memory_order_relaxed);
-                std::lock_guard<std::mutex> lg(work_items_mutex_);
+                std::lock_guard<mutex_type> lg(work_items_mutex_);
                 if (0 != work_items_count && !work_items_.empty())
                 {
                     thrd = work_items_.top();
@@ -618,7 +619,7 @@ namespace threads {
                 threads::thread_data* thrd, bool other_end = false)
             {
                 ++work_items_count_;
-                std::lock_guard<std::mutex> lg(work_items_mutex_);
+                std::lock_guard<mutex_type> lg(work_items_mutex_);
                 work_items_.push(thrd);
                 next_deadline_ = work_items_.top()->get_deadline();
             }
@@ -845,7 +846,7 @@ namespace threads {
             ///< list of active work items
             std::atomic<std::int64_t> work_items_count_;
             ///< count of active work items
-            std::mutex work_items_mutex_;
+            mutex_type work_items_mutex_;
 
             terminated_items_type
                 terminated_items_;    ///< list of terminated threads
