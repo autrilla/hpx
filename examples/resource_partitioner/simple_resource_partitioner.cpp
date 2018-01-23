@@ -53,7 +53,7 @@ std::vector<time_info> info;
 
 void yield_maybe_synchronized()
 {
-    hpx::threads::thread_data* next_thread;
+    hpx::threads::thread_data* next_thread = nullptr;
     auto self = hpx::this_thread::get_id().native_handle().get();
     auto scheduler = dynamic_cast<edf_sched*>(self->get_scheduler_base());
     scheduler->peek_next_thread(next_thread);
