@@ -92,6 +92,11 @@ namespace hpx { namespace threads
         {
             if (stacksize == 0)
                 stacksize = get_default_stack_size();
+	    if ((priority == thread_priority_boost) || (priority == thread_priority_high)) {
+	      deadline = std::chrono::steady_clock::time_point::min();
+	    } else {
+	      deadline = std::chrono::steady_clock::time_point::max();
+	    }
         }
 
         threads::thread_function_type func;
